@@ -39,7 +39,8 @@ Release the version recorded in `Makefile` with:
 make release v=0.2.5
 ```
 
-The command validates tests and generated sources, requires `origin/main` to
-match the local commit, and creates the `v0.2.5` tag and GitHub release.
+The command validates tests and generated sources, publishes a clean local
+`main` when it is strictly ahead of `origin/main`, and creates the `v0.2.5`
+tag and GitHub release.
 It never creates an unprefixed version tag.
 Use `d=1` to print the release action without publishing it.

@@ -21,12 +21,15 @@ die() {
 [[ -z $(git status --porcelain) ]] ||
   die 'Working tree is not clean'
 
+branch=$(git branch --show-current)
+[[ $branch == main ]] || die "Release branch must be main, not $branch"
+
 head=$(git rev-parse HEAD)
 remote_line=$(git ls-remote origin refs/heads/main)
 remote_head=${remote_line%%$'\t'*}
 [[ -n $remote_head ]] || die 'origin/main does not exist'
-[[ $head == "$remote_head" ]] ||
-  die "Local HEAD $head does not match origin/main $remote_head"
+git merge-base --is-ancestor "$remote_head" "$head" ||
+  die "Local main has diverged from origin/main $remote_head"
 
 tag=v$version
 if git ls-remote --exit-code --tags origin "refs/tags/$tag" \
@@ -38,8 +41,16 @@ if "$gh" release view "$tag" --repo "$repo" >/dev/null 2>&1; then
 fi
 
 if [[ -n $dry_run ]]; then
+  if [[ $head != "$remote_head" ]]; then
+    printf 'Would publish main at %s\n' "$head"
+  fi
   printf 'Would create %s at %s in %s\n' "$tag" "$head" "$repo"
   exit 0
+fi
+
+if [[ $head != "$remote_head" ]]; then
+  git push origin HEAD:main
+  printf 'Published main at %s\n' "$head"
 fi
 
 "$gh" release create "$tag" \
