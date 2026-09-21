@@ -7,9 +7,11 @@ $(shell test -d $M || { \
 
 GO-VERSION := 1.27.1
 include $M/init.mk
+include $M/gh.mk
 include $M/gloat.mk
 include $M/go.mk
 include $M/clean.mk
+include $M/shellcheck.mk
 include $M/shell.mk
 
 VERSION := 0.2.5
@@ -41,11 +43,22 @@ MAKES-CLEAN := \
 
 default:: test
 
-test: $(GO)
+test: $(GO) $(SHELLCHECK)
 	$(GO) test ./...
+	$(SHELLCHECK) util/release
 
 release-check: test check-generated
 	grep -Fq 'const Version = "$(VERSION)"' parser/parser.go
+
+release: release-check $(GH)
+ifndef v
+	$(error 'make release' requires v=VERSION)
+endif
+	RELEASE_VERSION=$(VERSION) \
+	RELEASE_REPO=yamlstar/yamlstar-plugin-parser-reference \
+	RELEASE_DRY_RUN=$(d) \
+	GH=$(GH) \
+	util/release $(v)
 
 generate: $(PARSER_SOURCES) $(GLOAT)
 	rm -rf $(GENERATED_WORK)

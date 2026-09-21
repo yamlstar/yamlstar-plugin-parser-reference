@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+version=${1:?Usage: util/release VERSION}
+expected=${RELEASE_VERSION:?RELEASE_VERSION must be set}
+repo=${RELEASE_REPO:-yamlstar/yamlstar-plugin-parser-reference}
+gh=${GH:-gh}
+dry_run=${RELEASE_DRY_RUN:-}
+
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  die "Version must have the form X.Y.Z: $version"
+[[ $version == "$expected" ]] ||
+  die "Requested version $version does not match source version $expected"
+
+[[ -z $(git status --porcelain) ]] ||
+  die 'Working tree is not clean'
+
+head=$(git rev-parse HEAD)
+remote_line=$(git ls-remote origin refs/heads/main)
+remote_head=${remote_line%%$'\t'*}
+[[ -n $remote_head ]] || die 'origin/main does not exist'
+[[ $head == "$remote_head" ]] ||
+  die "Local HEAD $head does not match origin/main $remote_head"
+
+tag=v$version
+if git ls-remote --exit-code --tags origin "refs/tags/$tag" \
+  >/dev/null 2>&1; then
+  die "Tag $tag already exists on origin"
+fi
+if "$gh" release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+  die "GitHub release $tag already exists"
+fi
+
+if [[ -n $dry_run ]]; then
+  printf 'Would create %s at %s in %s\n' "$tag" "$head" "$repo"
+  exit 0
+fi
+
+"$gh" release create "$tag" \
+  --repo "$repo" \
+  --target "$head" \
+  --title "Reference Parser Plugin $tag" \
+  --notes "Generated Go module for yaml/yaml-reference-parser-clj $tag."
+
+git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null ||
+  die "GitHub did not create tag $tag"
+printf 'Released %s at %s\n' "$tag" "$head"
